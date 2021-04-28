@@ -24,6 +24,8 @@
 -define(DEFAULT_COUNT, 100).
 -define(DEFAULT_OFFSET, 0).
 
+% generic command
+-define(GENERIC_COMMAND, generic_command).
 % item commands
 -define(ITEM_GET, item_get).
 -define(ITEM_REMOVE, item_remove).
