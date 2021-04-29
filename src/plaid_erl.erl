@@ -13,6 +13,7 @@
   % generic method %
   request/3,
   request/4,
+  request/5,
   % item methods %
   item_get/2,
   item_get/3,
@@ -96,12 +97,48 @@
   asset_report_audit_create/3,
   asset_report_audit_create/4,
   asset_report_audit_remove/2,
-  asset_report_audit_remove/3
+  asset_report_audit_remove/3,
   % investment methods %
+  investments_holdings_get/3,
+  investments_holdings_get/4,
+  investments_transactions_get/5,
+  investments_transactions_get/6,
   % liabilities methods %
+  liabilities_get/3,
+  liabilities_get/4,
   % payment initiation methods %
+  payment_recipient_create/3,
+  payment_recipient_create/4,
+  payment_recipient_get/2,
+  payment_recipient_get/3,
+  payment_recipient_list/1,
+  payment_recipient_list/2,
+  payment_create/5,
+  payment_create/6,
+  payment_get/2,
+  payment_get/3,
+  payment_list/2,
+  payment_list/3,
   % bank transfer methods %
+  bank_transfer_create/11,
+  bank_transfer_create/12,
+  bank_transfer_cancel/2,
+  bank_transfer_cancel/3,
+  bank_transfer_event_list/2,
+  bank_transfer_event_list/3,
+  bank_transfer_event_sync/3,
+  bank_transfer_event_sync/4,
+  bank_transfer_migrate_account/4,
+  bank_transfer_migrate_account/5,
+  bank_transfer_balance_get/2,
+  bank_transfer_balance_get/3,
   % deposit switch methods %
+  deposit_switch_create/3,
+  deposit_switch_create/4,
+  deposit_switch_alt_create/3,
+  deposit_switch_alt_create/4,
+  deposit_switch_get/2,
+  deposit_switch_get/3
 ]).
 
 -export([
@@ -135,9 +172,19 @@ request(Pid, UrlSuffix, Values) ->
     Values :: maps:map(),
     Timeout :: pos_integer()
 ) -> plaid_erl_res().
-request(Pid, UrlSuffix, Values, Timeout)
-  when is_binary(UrlSuffix), is_map(Values), is_integer(Timeout), Timeout > 0 ->
-  gen_server:call(Pid, #plaid_req{ type=?GENERIC_COMMAND, values=Values, url_suffix=UrlSuffix }, Timeout).
+request(Pid, UrlSuffix, Values, Timeout) ->
+  request(Pid, ?GENERIC_COMMAND, UrlSuffix, Values, Timeout).
+
+-spec request(
+    Pid :: pid(),
+    Type :: atom(),
+    UrlSuffix :: binary(),
+    Values :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+request(Pid, Type, UrlSuffix, Values, Timeout)
+  when is_atom(Type), is_binary(UrlSuffix), is_map(Values), is_integer(Timeout), Timeout > 0 ->
+  gen_server:call(Pid, #plaid_req{ type=Type, values=Values, url_suffix=UrlSuffix }, Timeout).
 
 -spec item_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 item_get(Pid, Token) ->
@@ -147,7 +194,7 @@ item_get(Pid, Token) ->
 item_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(Pid, #plaid_req{ type=?ITEM_GET, values=Values, url_suffix = <<"/item/get">> }, Timeout).
+  request(Pid, ?ITEM_GET, <<"/item/get">>, Values, Timeout).
 
 -spec item_remove(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 item_remove(Pid, Token) ->
@@ -157,7 +204,7 @@ item_remove(Pid, Token) ->
 item_remove(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(Pid, #plaid_req{ type=?ITEM_REMOVE, values=Values, url_suffix = <<"/item/remove">> }, Timeout).
+  request(Pid, ?ITEM_REMOVE, <<"/item/remove">>, Values, Timeout).
 
 -spec item_webhook_update(Pid :: pid(), Token :: binary(), Webhook :: binary()) -> plaid_erl_res().
 item_webhook_update(Pid, Token, Webhook) ->
@@ -175,11 +222,7 @@ item_webhook_update(Pid, Token, Webhook, Timeout)
     <<"access_token">> => Token,
     <<"webhook">> => Webhook
   },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ITEM_WEBHOOK_UPDATE, values=Values, url_suffix = <<"/item/webhook/update">> },
-    Timeout
-  ).
+  request(Pid, ?ITEM_WEBHOOK_UPDATE, <<"/item/webhook/update">>, Values, Timeout).
 
 -spec institutions_get(
     Pid :: pid(),
@@ -217,11 +260,7 @@ institutions_get(Pid, Count, Offset, Options, Timeout)
     <<"offset">> => Offset,
     <<"options">> => Options2
   },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?INSTITUTIONS_GET, values=Values, url_suffix = <<"/institutions/get">> },
-    Timeout
-  ).
+  request(Pid, ?INSTITUTIONS_GET, <<"/institutions/get">>, Values, Timeout).
 
 -spec institutions_get_by_id(Pid :: pid(), Id :: binary(), Options :: maps:map()) -> plaid_erl_res().
 institutions_get_by_id(Pid, Id, Options) ->
@@ -244,11 +283,7 @@ institutions_get_by_id(Pid, Id, Options, Timeout)
     <<"institution_id">> => Id,
     <<"options">> => Options2
   },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?INSTITUTIONS_GET_BY_ID, values=Values, url_suffix = <<"/institutions/get_by_id">> },
-    Timeout
-  ).
+  request(Pid, ?INSTITUTIONS_GET_BY_ID, <<"/institutions/get_by_id">>, Values, Timeout).
 
 -spec institutions_search(Pid :: pid(), Query :: binary(), Products :: list(), Options :: maps:map()) -> plaid_erl_res().
 institutions_search(Pid, Query, Products, Options) ->
@@ -274,11 +309,7 @@ institutions_search(Pid, Query, Products, Options, Timeout)
     <<"products">> => Products,
     <<"options">> => Options2
   },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?INSTITUTIONS_SEARCH, values=Values, url_suffix = <<"/institutions/search">> },
-    Timeout
-  ).
+  request(Pid, ?INSTITUTIONS_SEARCH, <<"/institutions/search">>, Values, Timeout).
 
 -spec accounts_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 accounts_get(Pid, Token) ->
@@ -288,11 +319,7 @@ accounts_get(Pid, Token) ->
 accounts_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ACCOUNTS_GET, values=Values, url_suffix = <<"/accounts/get">> },
-    Timeout
-  ).
+  request(Pid, ?ACCOUNTS_GET, <<"/accounts/get">>, Values, Timeout).
 
 -spec link_token_create(
     Pid :: pid(),
@@ -333,11 +360,7 @@ link_token_create(Pid, Name, Lang, Codes, User, Options, Timeout)
     <<"country_codes">> => Codes,
     <<"user">> => User
   }, Options2),
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?LINK_TOKEN_CREATE, values=Values, url_suffix = <<"/link/token/create">> },
-    Timeout
-  ).
+  request(Pid, ?LINK_TOKEN_CREATE, <<"/link/token/create">>, Values, Timeout).
 
 -spec link_token_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 link_token_get(Pid, Token) ->
@@ -347,7 +370,7 @@ link_token_get(Pid, Token) ->
 link_token_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"link_token">> => Token },
-  gen_server:call(Pid, #plaid_req{ type=?LINK_TOKEN_GET, values=Values, url_suffix = <<"/link/token/get">> }, Timeout).
+  request(Pid, ?LINK_TOKEN_GET, <<"/link/token/get">>, Values, Timeout).
 
 -spec item_public_token_exchange(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 item_public_token_exchange(Pid, Token) ->
@@ -357,11 +380,7 @@ item_public_token_exchange(Pid, Token) ->
 item_public_token_exchange(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"public_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ITEM_PUBLIC_TOKEN_EXCHANGE, values=Values, url_suffix = <<"/item/public_token/exchange">> },
-    Timeout
-  ).
+  request(Pid, ?ITEM_PUBLIC_TOKEN_EXCHANGE, <<"/item/public_token/exchange">>, Values, Timeout).
 
 -spec item_access_token_invalidate(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 item_access_token_invalidate(Pid, Token) ->
@@ -371,11 +390,7 @@ item_access_token_invalidate(Pid, Token) ->
 item_access_token_invalidate(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ITEM_ACCESS_TOKEN_INVALIDATE, values=Values, url_suffix = <<"/item/access_token/invalidate">> },
-    Timeout
-  ).
+  request(Pid, ?ITEM_ACCESS_TOKEN_INVALIDATE, <<"/item/access_token/invalidate">>, Values, Timeout).
 
 -spec processor_token_create(
     Pid :: pid(),
@@ -400,11 +415,7 @@ processor_token_create(Pid, Token, AccountID, Processor, Timeout)
     <<"account_id">> => AccountID,
     <<"processor">> => Processor
   },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?PROCESSOR_TOKEN_CREATE, values=Values, url_suffix = <<"/processor/token/create">> },
-    Timeout
-  ).
+  request(Pid, ?PROCESSOR_TOKEN_CREATE, <<"/processor/token/create">>, Values, Timeout).
 
 -spec processor_stripe_token_create(Pid :: pid(), Token :: binary(), AccountID :: binary()) -> plaid_erl_res().
 processor_stripe_token_create(Pid, Token, AccountID) ->
@@ -419,12 +430,13 @@ processor_stripe_token_create(Pid, Token, AccountID) ->
 processor_stripe_token_create(Pid, Token, AccountID, Timeout)
   when is_binary(Token), is_binary(AccountID), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token, <<"account_id">> => AccountID },
-  Req = #plaid_req{
-    type=?PROCESSOR_STRIPE_BANK_ACCOUNT_TOKEN_CREATE,
-    values=Values,
-    url_suffix = <<"/processor/stripe/bank_account_token/create">>
-  },
-  gen_server:call(Pid, Req, Timeout).
+  request(
+    Pid,
+    ?PROCESSOR_STRIPE_BANK_ACCOUNT_TOKEN_CREATE,
+    <<"/processor/stripe/bank_account_token/create">>,
+    Values,
+    Timeout
+  ).
 
 -spec processor_auth_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 processor_auth_get(Pid, Token) ->
@@ -434,11 +446,7 @@ processor_auth_get(Pid, Token) ->
 processor_auth_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"processor_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?PROCESSOR_AUTH_GET, values=Values, url_suffix = <<"/processor/auth/get">> },
-    Timeout
-  ).
+  request(Pid, ?PROCESSOR_AUTH_GET, <<"/processor/auth/get">>, Values, Timeout).
 
 -spec processor_balance_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 processor_balance_get(Pid, Token) ->
@@ -448,11 +456,7 @@ processor_balance_get(Pid, Token) ->
 processor_balance_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"processor_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?PROCESSOR_BALANCE_GET, values=Values, url_suffix = <<"/processor/balance/get">> },
-    Timeout
-  ).
+  request(Pid, ?PROCESSOR_BALANCE_GET, <<"/processor/balance/get">>, Values, Timeout).
 
 -spec processor_identity_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 processor_identity_get(Pid, Token) ->
@@ -462,11 +466,7 @@ processor_identity_get(Pid, Token) ->
 processor_identity_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"processor_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?PROCESSOR_IDENTITY_GET, values=Values, url_suffix = <<"/processor/identity/get">> },
-    Timeout
-  ).
+  request(Pid, ?PROCESSOR_IDENTITY_GET, <<"/processor/identity/get">>, Values, Timeout).
 
 -spec sandbox_public_token_create(
     Pid :: pid(),
@@ -492,11 +492,7 @@ sandbox_public_token_create(Pid, InstID, Products, Options, Timeout)
     <<"override_password">>
   ], Options),
   Values = #{ <<"institution_id">> => InstID, <<"initial_products">> => Products, <<"options">> => Options2 },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?SANDBOX_PUBLIC_TOKEN_CREATE, values=Values, url_suffix = <<"/sandbox/public_token/create">> },
-    Timeout
-  ).
+  request(Pid, ?SANDBOX_PUBLIC_TOKEN_CREATE, <<"/sandbox/public_token/create">>, Values, Timeout).
 
 -spec sandbox_item_reset_login(
     Pid :: pid(),
@@ -509,11 +505,7 @@ sandbox_item_reset_login(Pid, Token) ->
 sandbox_item_reset_login(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?SANDBOX_ITEM_RESET_LOGIN, values=Values, url_suffix = <<"/sandbox/item/reset_login">> },
-    Timeout
-  ).
+  request(Pid, ?SANDBOX_ITEM_RESET_LOGIN, <<"/sandbox/item/reset_login">>, Values, Timeout).
 
 -spec sandbox_item_set_verification_status(
     Pid :: pid(),
@@ -534,15 +526,7 @@ sandbox_item_set_verification_status(Pid, Token, AccountID, VerifyStatus) ->
 sandbox_item_set_verification_status(Pid, Token, AccountID, VerifyStatus, Timeout)
   when is_binary(Token), is_binary(AccountID), is_binary(VerifyStatus), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token, <<"account_id">> => AccountID, <<"verification_status">> => VerifyStatus },
-  gen_server:call(
-    Pid,
-    #plaid_req{
-      type=?SANDBOX_ITEM_SET_VERIFY_STATUS,
-      values=Values,
-      url_suffix = <<"/sandbox/item/set_verification_status">>
-    },
-    Timeout
-  ).
+  request(Pid, ?SANDBOX_ITEM_SET_VERIFY_STATUS, <<"/sandbox/item/set_verification_status">>, Values, Timeout).
 
 -spec sandbox_item_fire_webhook(Pid :: pid(), Token :: binary(), Code :: binary()) -> plaid_erl_res().
 sandbox_item_fire_webhook(Pid, Token, Code) ->
@@ -557,11 +541,7 @@ sandbox_item_fire_webhook(Pid, Token, Code) ->
 sandbox_item_fire_webhook(Pid, Token, Code, Timeout)
   when is_binary(Token), is_binary(Code), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token, <<"webhook_code">> => Code },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?SANDBOX_ITEM_FIRE_WEBHOOK, values=Values, url_suffix = <<"/sandbox/item/fire_webhook">> },
-    Timeout
-  ).
+  request(Pid, ?SANDBOX_ITEM_FIRE_WEBHOOK, <<"/sandbox/item/fire_webhook">>, Values, Timeout).
 
 -spec sandbox_bank_transfer_simulate(
     Pid :: pid(),
@@ -588,15 +568,7 @@ sandbox_bank_transfer_simulate(Pid, TransferID, Event, Options, Timeout)
     <<"bank_transfer_id">> => TransferID,
     <<"event_type">> => Event
   }, Options2),
-  gen_server:call(
-    Pid,
-    #plaid_req{
-      type=?SANDBOX_BANK_TRANSFER_SIMULATE,
-      values=Values,
-      url_suffix = <<"/sandbox/bank_transfer/simulate">>
-    },
-    Timeout
-  ).
+  request(Pid, ?SANDBOX_BANK_TRANSFER_SIMULATE, <<"/sandbox/bank_transfer/simulate">>, Values, Timeout).
 
 -spec employers_search(Pid :: pid(), Query :: binary(), Products :: list()) -> plaid_erl_res().
 employers_search(Pid, Query, Products) ->
@@ -611,11 +583,7 @@ employers_search(Pid, Query, Products) ->
 employers_search(Pid, Query, Products, Timeout)
   when is_binary(Query), is_list(Products), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"query">> => Query, <<"products">> => Products },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?EMPLOYERS_SEARCH, values=Values, url_suffix = <<"/employers/search">> },
-    Timeout
-  ).
+  request(Pid, ?EMPLOYERS_SEARCH, <<"/employers/search">>, Values, Timeout).
 
 -spec transactions_get(
     Pid :: pid(),
@@ -654,11 +622,7 @@ transactions_get(Pid, Token, Start, End, Options=#{ <<"count">> := Count, <<"off
     #{ <<"options">> => Options2 },
     #{ <<"access_token">> => Token, <<"start_date">> => Start, <<"end_date">> => End }
   ),
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?TRANSACTIONS_GET, values=Values, url_suffix = <<"/transactions/get">> },
-    Timeout
-  ).
+  request(Pid, ?TRANSACTIONS_GET, <<"/transactions/get">>, Values, Timeout).
 
 -spec transactions_refresh(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 transactions_refresh(Pid, Token) ->
@@ -668,11 +632,7 @@ transactions_refresh(Pid, Token) ->
 transactions_refresh(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?TRANSACTIONS_REFRESH, values=Values, url_suffix = <<"/transactions/refresh">> },
-    Timeout
-  ).
+  request(Pid, ?TRANSACTIONS_REFRESH, <<"/transactions/refresh">>, Values, Timeout).
 
 -spec categories_get(Pid :: pid()) -> plaid_erl_res().
 categories_get(Pid) ->
@@ -682,11 +642,7 @@ categories_get(Pid) ->
 categories_get(Pid, Timeout)
   when is_integer(Timeout), Timeout > 0 ->
   Values = #{},
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?CATEGORIES_GET, values=Values, url_suffix = <<"/categories/get">> },
-    Timeout
-  ).
+  request(Pid, ?CATEGORIES_GET, <<"/categories/get">>, Values, Timeout).
 
 -spec auth_get(Pid :: pid(), Token :: binary(), Options :: maps:map()) -> plaid_erl_res().
 auth_get(Pid, Token, Options) ->
@@ -699,11 +655,7 @@ auth_get(Pid, Token, Options, Timeout)
     <<"account_ids">>
   ], Options),
   Values = #{ <<"access_token">> => Token, <<"options">> => Options2 },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?AUTH_GET, values=Values, url_suffix = <<"/auth/get">> },
-    Timeout
-  ).
+  request(Pid, ?AUTH_GET, <<"/auth/get">>, Values, Timeout).
 
 -spec accounts_balance_get(Pid :: pid(), Token :: binary(), Options :: maps:map()) -> plaid_erl_res().
 accounts_balance_get(Pid, Token, Options) ->
@@ -722,11 +674,7 @@ accounts_balance_get(Pid, Token, Options, Timeout)
     <<"min_last_updated_time">>
   ], Options),
   Values = #{ <<"access_token">> => Token, <<"options">> => Options2 },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ACCOUNTS_BALANCE_GET, values=Values, url_suffix = <<"/accounts/balance/get">> },
-    Timeout
-  ).
+  request(Pid, ?ACCOUNTS_BALANCE_GET, <<"/accounts/balance/get">>, Values, Timeout).
 
 -spec identity_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 identity_get(Pid, Token) ->
@@ -736,11 +684,7 @@ identity_get(Pid, Token) ->
 identity_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?IDENTITY_GET, values=Values, url_suffix = <<"/identity/get">> },
-    Timeout
-  ).
+  request(Pid, ?IDENTITY_GET, <<"/identity/get">>, Values, Timeout).
 
 -spec asset_report_create(
     Pid :: pid(),
@@ -766,11 +710,7 @@ asset_report_create(Pid, Tokens, Days, Options, Timeout)
     <<"user">>
   ], Options),
   Values = #{ <<"access_tokens">> => Tokens, <<"days_requested">> => Days, <<"options">> => Options2 },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ASSET_REPORT_CREATE, values=Values, url_suffix = <<"/asset_report/create">> },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_CREATE, <<"/asset_report/create">>, Values, Timeout).
 
 -spec asset_report_get(Pid :: pid(), Token :: binary(), Options :: maps:map()) -> plaid_erl_res().
 asset_report_get(Pid, Token, Options) ->
@@ -788,11 +728,7 @@ asset_report_get(Pid, Token, Options, Timeout)
     <<"include_insights">>
   ], Options),
   Values = maps:merge(Options2, #{ <<"access_report_token">> => Token}),
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ASSET_REPORT_GET, values=Values, url_suffix = <<"/asset_report/get">> },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_GET, <<"/asset_report/get">>, Values, Timeout).
 
 -spec asset_report_pdf_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 asset_report_pdf_get(Pid, Token) ->
@@ -802,11 +738,7 @@ asset_report_pdf_get(Pid, Token) ->
 asset_report_pdf_get(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_report_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ASSET_REPORT_PDF_GET, values=Values, url_suffix = <<"/asset_report/pdf/get">> },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_PDF_GET, <<"/asset_report/pdf/get">>, Values, Timeout).
 
 -spec asset_report_refresh(Pid :: pid(), Token :: binary(), Options :: maps:map()) -> plaid_erl_res().
 asset_report_refresh(Pid, Token, Options) ->
@@ -825,11 +757,7 @@ asset_report_refresh(Pid, Token, Options, Timeout)
     <<"options">>
   ], Options),
   Values = maps:merge(Options2, #{ <<"access_report_token">> => Token }),
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ASSET_REPORT_REFRESH, values=Values, url_suffix = <<"/asset_report/refresh">> },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_REFRESH, <<"/asset_report/refresh">>, Values, Timeout).
 
 -spec asset_report_filter(Pid :: pid(), Token :: binary(), Exclude :: list()) -> plaid_erl_res().
 asset_report_filter(Pid, Token, Exclude) ->
@@ -844,11 +772,7 @@ asset_report_filter(Pid, Token, Exclude) ->
 asset_report_filter(Pid, Token, Exclude, Timeout)
   when is_binary(Token), is_list(Exclude), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_report_token">> => Token, <<"account_ids_to_exclude">> => Exclude },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ASSET_REPORT_FILTER, values=Values, url_suffix = <<"/asset_report/filter">> },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_FILTER, <<"/asset_report/filter">>, Values, Timeout).
 
 -spec asset_report_remove(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 asset_report_remove(Pid, Token) ->
@@ -858,11 +782,7 @@ asset_report_remove(Pid, Token) ->
 asset_report_remove(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_report_token">> => Token },
-  gen_server:call(
-    Pid,
-    #plaid_req{ type=?ASSET_REPORT_REMOVE, values=Values, url_suffix = <<"/asset_report/remove">> },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_REMOVE, <<"/asset_report/remove">>, Values, Timeout).
 
 -spec asset_report_audit_create(Pid :: pid(), Token :: binary(), Auditor :: binary()) -> plaid_erl_res().
 asset_report_audit_create(Pid, Token, Auditor) ->
@@ -877,15 +797,7 @@ asset_report_audit_create(Pid, Token, Auditor) ->
 asset_report_audit_create(Pid, Token, Auditor, Timeout)
   when is_binary(Token), is_binary(Auditor), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_report_token">> => Token, <<"auditor_id">> => Auditor },
-  gen_server:call(
-    Pid,
-    #plaid_req{
-      type=?ASSET_REPORT_AUDIT_COPY_CREATE,
-      values=Values,
-      url_suffix = <<"/asset_report/audit_copy/create">>
-    },
-    Timeout
-  ).
+  request(Pid, ?ASSET_REPORT_AUDIT_COPY_CREATE, <<"/asset_report/audit_copy/create">>, Values, Timeout).
 
 -spec asset_report_audit_remove(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 asset_report_audit_remove(Pid, Token) ->
@@ -895,15 +807,437 @@ asset_report_audit_remove(Pid, Token) ->
 asset_report_audit_remove(Pid, Token, Timeout)
   when is_binary(Token), is_integer(Timeout), Timeout > 0 ->
   Values = #{ <<"access_report_token">> => Token },
-  gen_server:call(
+  request(Pid, ?ASSET_REPORT_AUDIT_COPY_REMOVE, <<"/asset_report/audit_copy/remove">>, Values, Timeout).
+
+-spec investments_holdings_get(Pid :: pid(), Token :: binary(), Options :: maps:map()) -> plaid_erl_res().
+investments_holdings_get(Pid, Token, Options) ->
+  investments_holdings_get(Pid, Token, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec investments_holdings_get(
+    Pid :: pid(),
+    Token :: binary(),
+    Options :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+investments_holdings_get(Pid, Token, Options, Timeout)
+  when is_binary(Token), is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"account_ids">>
+  ], Options),
+  Values = #{ <<"access_token">> => Token, <<"options">> => Options2 },
+  request(Pid, ?INVESTMENTS_HOLDINGS_GET, <<"/investments/holdings/get">>, Values, Timeout).
+
+-spec investments_transactions_get(
+    Pid :: pid(),
+    Token :: binary(),
+    Start :: binary(),
+    End :: binary(),
+    Options :: maps:map()
+) -> plaid_erl_res().
+investments_transactions_get(Pid, Token, Start, End, Options) ->
+  investments_transactions_get(Pid, Token, Start, End, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec investments_transactions_get(
+    Pid :: pid(),
+    Token :: binary(),
+    Start :: binary(),
+    End :: binary(),
+    Options :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+investments_transactions_get(Pid, Token, Start, End, Options, Timeout)
+  when is_binary(Token), is_binary(Start), is_binary(End), is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"account_ids">>,
+    <<"count">>,
+    <<"offset">>
+  ], Options),
+  Values = #{
+    <<"access_token">> => Token,
+    <<"start_date">> => Start,
+    <<"end_date">> => End,
+    <<"options">> => Options2
+  },
+  request(Pid, ?INVESTMENTS_TRANSACTIONS_GET, <<"/investments/transactions/get">>, Values, Timeout).
+
+-spec liabilities_get(Pid :: pid(), Token :: binary(), Options :: maps:map()) -> plaid_erl_res().
+liabilities_get(Pid, Token, Options) ->
+  liabilities_get(Pid, Token, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec liabilities_get(
+    Pid :: pid(),
+    Token :: binary(),
+    Options :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+liabilities_get(Pid, Token, Options, Timeout)
+  when is_binary(Token), is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"account_ids">>
+  ], Options),
+  Values = case maps:size(Options2) of
+             0 -> #{ <<"access_token">> => Token };
+             _ -> #{ <<"access_token">> => Token, <<"options">> => Options }
+           end,
+  request(Pid, ?LIABILITIES_GET, <<"/liabilities/get">>, Values, Timeout).
+
+-spec payment_recipient_create(Pid :: pid(), Name :: binary(), Options :: maps:map()) -> plaid_erl_res().
+payment_recipient_create(Pid, Name, Options) ->
+  payment_recipient_create(Pid, Name, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec payment_recipient_create(
+    Pid :: pid(),
+    Name :: binary(),
+    Options :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+payment_recipient_create(Pid, Name, Options, Timeout)
+  when is_binary(Name), is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"iban">>,
+    <<"bacs">>,
+    <<"address">>
+  ], Options),
+  Values = maps:merge(#{ <<"name">> => Name }, Options2),
+  request(Pid, ?PAYMENT_INITIATION_RECIPIENT_CREATE, <<"/payment_initiation/recipient/create">>, Values, Timeout).
+
+-spec payment_recipient_get(Pid :: pid(), RecipientID :: binary()) -> plaid_erl_res().
+payment_recipient_get(Pid, RecipientID) ->
+  payment_recipient_get(Pid, RecipientID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec payment_recipient_get(Pid :: pid(), RecipientID :: binary(), Timeout :: pos_integer()) -> plaid_erl_res().
+payment_recipient_get(Pid, RecipientID, Timeout)
+  when is_binary(RecipientID), is_integer(Timeout), Timeout > 0 ->
+  Values = #{ <<"recipient_id">> => RecipientID },
+  request(Pid, ?PAYMENT_INITIATION_RECIPIENT_GET, <<"/payment_initiation/recipient/get">>, Values, Timeout).
+
+-spec payment_recipient_list(Pid :: pid()) -> plaid_erl_res().
+payment_recipient_list(Pid) ->
+  payment_recipient_list(Pid, ?DEFAULT_CALL_TIMEOUT).
+
+-spec payment_recipient_list(Pid :: pid(), Timeout :: pos_integer()) -> plaid_erl_res().
+payment_recipient_list(Pid, Timeout)
+  when is_integer(Timeout), Timeout > 0 ->
+  Values = #{},
+  request(Pid, ?PAYMENT_INITIATION_RECIPIENT_LIST, <<"/payment_initiation/recipient/list">>, Values, Timeout).
+
+-spec payment_create(
+    Pid :: pid(),
+    RecipientID :: binary(),
+    Ref :: binary(),
+    Amount :: maps:map(),
+    Schedule :: maps:map()
+) -> plaid_erl_res().
+payment_create(Pid, RecipientID, Ref, Amount, Schedule) ->
+  payment_create(Pid, RecipientID, Ref, Amount, Schedule, ?DEFAULT_CALL_TIMEOUT).
+
+-spec payment_create(
+    Pid :: pid(),
+    RecipientID :: binary(),
+    Ref :: binary(),
+    Amount :: maps:map(),
+    Schedule :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+payment_create(Pid, RecipientID, Ref, Amount, Schedule, Timeout)
+  when is_binary(RecipientID), is_binary(Ref), is_map(Amount), is_map(Schedule), is_integer(Timeout), Timeout > 0 ->
+  Amount2 = maps:with([
+    <<"currency">>,
+    <<"value">>
+  ], Amount),
+  Schedule2 = maps:with([
+    <<"interval">>,
+    <<"interval_execution_day">>,
+    <<"start_date">>,
+    <<"end_date">>
+  ], Schedule),
+  Values = case maps:size(Schedule2) of
+             0 -> #{
+               <<"recipient_id">> => RecipientID,
+               <<"reference">> => Ref,
+               <<"amount">> => Amount2,
+               <<"schedule">> => Schedule2
+             };
+             _ -> #{
+               <<"recipient_id">> => RecipientID,
+               <<"reference">> => Ref,
+               <<"amount">> => Amount2
+             }
+           end,
+  request(Pid, ?PAYMENT_INITIATION_PAYMENT_CREATE, <<"/payment_initiation/payment/create">>, Values, Timeout).
+
+-spec payment_get(Pid :: pid(), PaymentID :: binary()) -> plaid_erl_res().
+payment_get(Pid, PaymentID) ->
+  payment_get(Pid, PaymentID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec payment_get(Pid :: pid(), PaymentID :: binary(), Timeout :: pos_integer()) -> plaid_erl_res().
+payment_get(Pid, PaymentID, Timeout)
+  when is_binary(PaymentID), is_integer(Timeout), Timeout > 0 ->
+  Values = #{ <<"payment_id">> => PaymentID },
+  request(Pid, ?PAYMENT_INITIATION_PAYMENT_GET, <<"/payment_initiation/payment/get">>, Values, Timeout).
+
+-spec payment_list(Pid :: pid(), Options :: maps:map()) -> plaid_erl_res().
+payment_list(Pid, Options) ->
+  payment_list(Pid, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec payment_list(Pid :: pid(), Options :: maps:map(), Timeout :: pos_integer()) -> plaid_erl_res().
+payment_list(Pid, Options, Timeout)
+  when is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"count">>,
+    <<"cursor">>
+  ], Options),
+  Values = #{ <<"options">> => Options2 },
+  request(Pid, ?PAYMENT_INITIATION_PAYMENT_LIST, <<"/payment_initiation/payment/list">>, Values, Timeout).
+
+-spec bank_transfer_create(
+    Pid :: pid(),
+    IdemKey :: binary(),
+    Token :: binary(),
+    AccountID :: binary(),
+    Type :: binary(),
+    Network :: binary(),
+    Amount :: binary(),
+    Currency :: binary(),
+    Desc :: binary(),
+    User :: maps:map(),
+    Options :: maps:map()
+) -> plaid_erl_res().
+bank_transfer_create(Pid, IdemKey, Token, AccountID, Type, Network, Amount, Currency, Desc, User, Options) ->
+  bank_transfer_create(
     Pid,
-    #plaid_req{
-      type=?ASSET_REPORT_AUDIT_COPY_REMOVE,
-      values=Values,
-      url_suffix = <<"/asset_report/audit_copy/remove">>
-    },
-    Timeout
+    IdemKey,
+    Token,
+    AccountID,
+    Type,
+    Network,
+    Amount,
+    Currency,
+    Desc,
+    User,
+    Options,
+    ?DEFAULT_CALL_TIMEOUT
   ).
+
+-spec bank_transfer_create(
+    Pid :: pid(),
+    IdemKey :: binary(),
+    Token :: binary(),
+    AccountID :: binary(),
+    Type :: binary(),
+    Network :: binary(),
+    Amount :: binary(),
+    Currency :: binary(),
+    Desc :: binary(),
+    User :: maps:map(),
+    Options :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+bank_transfer_create(Pid, IdemKey, Token, AccountID, Type, Network, Amount, Currency, Desc, User, Options, Timeout)
+  when  is_binary(IdemKey),
+        is_binary(Token),
+        is_binary(AccountID),
+        is_binary(Type),
+        is_binary(Network),
+        is_binary(Amount),
+        is_binary(Currency),
+        is_binary(Desc),
+        is_map(User),
+        is_map(Options),
+        is_integer(Timeout),
+        Timeout > 0 ->
+  User2 = maps:with([
+    <<"legal_name">>,
+    <<"email_address">>,
+    <<"routing_number">>
+  ], User),
+  Options2 = maps:with([
+    <<"custom_tag">>,
+    <<"metadata">>,
+    <<"origination_account_id">>
+  ], Options),
+  Values = maps:merge(#{
+    <<"idempotency_key">> => IdemKey,
+    <<"access_token">> => Token,
+    <<"account_id">> => AccountID,
+    <<"type">> => Type,
+    <<"network">> => Network,
+    <<"amount">> => Amount,
+    <<"iso_currency_code">> => Currency,
+    <<"description">> => Desc,
+    <<"user">> => User2
+  }, Options2),
+  request(Pid, ?BANK_TRANSFER_CREATE, <<"/bank_transfer/create">>, Values, Timeout).
+
+-spec bank_transfer_cancel(Pid :: pid(), TransferID :: binary()) -> plaid_erl_res().
+bank_transfer_cancel(Pid, TransferID) ->
+  bank_transfer_cancel(Pid, TransferID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_cancel(Pid :: pid(), TransferID :: binary(), Timeout :: pos_integer()) -> plaid_erl_res().
+bank_transfer_cancel(Pid, TransferID, Timeout)
+  when is_binary(TransferID), is_integer(Timeout), Timeout > 0 ->
+  Values = #{ <<"bank_transfer_id">> => TransferID },
+  request(Pid, ?BANK_TRANSFER_CANCEL, <<"/bank_transfer/cancel">>, Values, Timeout).
+
+-spec bank_transfer_get(Pid :: pid(), TransferID :: binary()) -> plaid_erl_res().
+bank_transfer_get(Pid, TransferID) ->
+  bank_transfer_get(Pid, TransferID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_get(Pid :: pid(), TransferID :: binary(), Timeout :: pos_integer()) -> plaid_erl_res().
+bank_transfer_get(Pid, TransferID, Timeout)
+  when is_binary(TransferID), is_integer(Timeout), Timeout > 0 ->
+  Values = #{ <<"bank_transfer_id">> => TransferID },
+  request(Pid, ?BANK_TRANSFER_GET, <<"/bank_transfer/get">>, Values, Timeout).
+
+-spec bank_transfer_list(Pid :: pid(), Options :: maps:map()) -> plaid_erl_res().
+bank_transfer_list(Pid, Options) ->
+  bank_transfer_list(Pid, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_list(Pid :: pid(), Options :: maps:map(), Timeout :: pos_integer()) -> plaid_erl_res().
+bank_transfer_list(Pid, Options, Timeout)
+  when is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"start_date">>,
+    <<"end_date">>,
+    <<"count">>,
+    <<"offset">>,
+    <<"origination_account_id">>,
+    <<"direction">>
+  ], Options),
+  request(Pid, ?BANK_TRANSFER_LIST, <<"/bank_transfer/list">>, Options2, Timeout).
+
+-spec bank_transfer_event_list(Pid :: pid(), Options :: maps:map()) -> plaid_erl_res().
+bank_transfer_event_list(Pid, Options) ->
+  bank_transfer_event_list(Pid, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_event_list(Pid :: pid(), Options :: maps:map(), Timeout :: pos_integer()) -> plaid_erl_res().
+bank_transfer_event_list(Pid, Options, Timeout)
+  when is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"start_date">>,
+    <<"end_date">>,
+    <<"bank_transfer_id">>,
+    <<"account_id">>,
+    <<"bank_transfer_type">>,
+    <<"event_types">>,
+    <<"count">>,
+    <<"offset">>,
+    <<"origination_account_id">>,
+    <<"direction">>
+  ], Options),
+  request(Pid, ?BANK_TRANSFER_EVENT_LIST, <<"/bank_transfer/event/list">>, Options2, Timeout).
+
+-spec bank_transfer_event_sync(Pid :: pid(), AfterID :: non_neg_integer(), Options :: maps:map()) -> plaid_erl_res().
+bank_transfer_event_sync(Pid, AfterID, Options) ->
+  bank_transfer_event_sync(Pid, AfterID, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_event_sync(
+    Pid :: pid(),
+    AfterID :: non_neg_integer(),
+    Options :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+bank_transfer_event_sync(Pid, AfterID, Options, Timeout)
+  when is_integer(AfterID), is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"count">>
+  ], Options),
+  Values = maps:merge(#{ <<"after_id">> => AfterID }, Options2),
+  request(Pid, ?BANK_TRANSFER_EVENT_SYNC, <<"/bank_transfer/event/sync">>, Values, Timeout).
+
+-spec bank_transfer_migrate_account(
+    Pid :: pid(),
+    AccountNum :: binary(),
+    RoutingNum :: binary(),
+    AccountType :: binary()
+) -> plaid_erl_res().
+bank_transfer_migrate_account(Pid, AccountNum, RoutingNum, AccountType) ->
+  bank_transfer_migrate_account(Pid, AccountNum, RoutingNum, AccountType, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_migrate_account(
+    Pid :: pid(),
+    AccountNum :: binary(),
+    RoutingNum :: binary(),
+    AccountType :: binary(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+bank_transfer_migrate_account(Pid, AccountNum, RoutingNum, AccountType, Timeout)
+  when is_binary(AccountNum), is_binary(RoutingNum), is_binary(AccountType), is_integer(Timeout), Timeout > 0 ->
+  Values = #{
+    <<"account_number">> => AccountNum,
+    <<"routing_number">> => RoutingNum,
+    <<"account_type">> => AccountType
+  },
+  request(Pid, ?BANK_TRANSFER_MIGRATE_ACCOUNT, <<"/bank_transfer/migrate_account">>, Values, Timeout).
+
+-spec bank_transfer_balance_get(Pid :: pid(), Options :: maps:map()) -> plaid_erl_res().
+bank_transfer_balance_get(Pid, Options) ->
+  bank_transfer_balance_get(Pid, Options, ?DEFAULT_CALL_TIMEOUT).
+
+-spec bank_transfer_balance_get(Pid :: pid(), Options :: maps:map(), Timeout :: pos_integer()) -> plaid_erl_res().
+bank_transfer_balance_get(Pid, Options, Timeout)
+  when is_map(Options), is_integer(Timeout), Timeout > 0 ->
+  Options2 = maps:with([
+    <<"origination_account_id">>
+  ], Options),
+  request(Pid, ?BANK_TRANSFER_BALANCE_GET, <<"/bank_transfer/balance/get">>, Options2, Timeout).
+
+-spec deposit_switch_create(Pid :: pid(), TagetToken :: binary(), TargetAccountID :: binary()) -> plaid_erl_res().
+deposit_switch_create(Pid, TargetToken, TargetAccountID) ->
+  deposit_switch_create(Pid, TargetToken, TargetAccountID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec deposit_switch_create(
+    Pid :: pid(),
+    TargetToken :: binary(),
+    TargetAccountID :: binary(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+deposit_switch_create(Pid, TargetToken, TargetAccountID, Timeout)
+  when is_binary(TargetToken), is_binary(TargetAccountID), is_integer(Timeout), Timeout > 0 ->
+  Values = #{
+    <<"target_access_token">> => TargetToken,
+    <<"taget_account_id">> => TargetAccountID
+  },
+  request(Pid, ?DEPOSIT_SWITCH_CREATE, <<"/deposit_switch/create">>, Values, Timeout).
+
+-spec deposit_switch_alt_create(Pid :: pid(), Account :: maps:map(), User :: maps:map()) -> plaid_erl_res().
+deposit_switch_alt_create(Pid, Account, User) ->
+  deposit_switch_alt_create(Pid, Account, User, ?DEFAULT_CALL_TIMEOUT).
+
+-spec deposit_switch_alt_create(
+    Pid :: pid(),
+    Account :: maps:map(),
+    User :: maps:map(),
+    Timeout :: pos_integer()
+) -> plaid_erl_res().
+deposit_switch_alt_create(Pid, Account, User, Timeout)
+  when is_map(Account), is_map(User), is_integer(Timeout), Timeout > 0 ->
+  Account2 = maps:with([
+    <<"account_number">>,
+    <<"routing_number">>,
+    <<"account_name">>,
+    <<"account_subtype">>
+  ], Account),
+  User2 = maps:with([
+    <<"given_name">>,
+    <<"family_name">>,
+    <<"phone">>,
+    <<"email">>,
+    <<"address">>,
+    <<"tax_payer_id">>
+  ], User),
+  Values = #{ <<"account">> => Account2, <<"user">> => User2 },
+  request(Pid, ?DEPOSIT_SWITCH_ALT_CREATE, <<"/deposit_switch/alt/create">>, Values, Timeout).
+
+-spec deposit_switch_get(Pid :: pid(), SwitchId :: binary()) -> plaid_erl_res().
+deposit_switch_get(Pid, SwitchID) ->
+  deposit_switch_get(Pid, SwitchID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec deposit_switch_get(Pid :: pid(), SwitchID :: binary(), Timeout :: pos_integer()) -> plaid_erl_res().
+deposit_switch_get(Pid, SwitchID, Timeout)
+  when is_binary(SwitchID), is_integer(Timeout), Timeout > 0 ->
+  Values = #{ <<"deposit_switch_id">> => SwitchID },
+  request(Pid, ?DEPOSIT_SWITCH_GET, <<"/deposit_switch/get">>, Values, Timeout).
 
 
 %% gen_server callbacks %%
