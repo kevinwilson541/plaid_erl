@@ -132,6 +132,10 @@
   bank_transfer_migrate_account/5,
   bank_transfer_balance_get/2,
   bank_transfer_balance_get/3,
+  bank_transfer_get/2,
+  bank_transfer_get/3,
+  bank_transfer_list/2,
+  bank_transfer_list/3,
   % deposit switch methods %
   deposit_switch_create/3,
   deposit_switch_create/4,
