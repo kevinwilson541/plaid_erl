@@ -101,3 +101,5 @@
 -define(DEPOSIT_SWITCH_CREATE, deposit_switch_create).
 -define(DEPOSIT_SWITCH_ALT_CREATE, deposit_switch_alt_create).
 -define(DEPOSIT_SWITCH_GET, deposit_switch_get).
+% webhook commands
+-define(WEBHOOK_VERIFICATION_KEY_GET, webhook_verification_key_get).

@@ -9,6 +9,7 @@
 -export([
   % server control %
   start_link/1,
+  start_link/2,
   stop/1,
   % generic method %
   request/3,
@@ -142,7 +143,9 @@
   deposit_switch_alt_create/3,
   deposit_switch_alt_create/4,
   deposit_switch_get/2,
-  deposit_switch_get/3
+  deposit_switch_get/3,
+  % webhook methods %
+  webhook_verification_key_get/2
 ]).
 
 -export([
@@ -161,6 +164,13 @@
 -spec start_link(Args :: plaid_init()) -> {ok, pid()}.
 start_link(Args=#plaid_init{}) ->
   gen_server:start_link(?MODULE, Args, []).
+
+-spec start_link(
+    Name :: {local, atom()} | {global, term()} | {via, Module :: atom(), Args :: term()},
+    Args :: plaid_init()
+) -> {ok, pid()}.
+start_link(Name, Args=#plaid_init{}) ->
+  gen_server:start_link(Name, ?MODULE, Args, []).
 
 -spec stop(Pid :: pid()) -> ok.
 stop(Pid) ->
@@ -1243,11 +1253,27 @@ deposit_switch_get(Pid, SwitchID, Timeout)
   Values = #{ <<"deposit_switch_id">> => SwitchID },
   request(Pid, ?DEPOSIT_SWITCH_GET, <<"/deposit_switch/get">>, Values, Timeout).
 
+-spec webhook_verification_key_get(Pid :: pid(), KID :: binary()) -> plaid_erl_res().
+webhook_verification_key_get(Pid, KID) ->
+  webhook_verification_key_get(Pid, KID, ?DEFAULT_CALL_TIMEOUT).
+
+-spec webhook_verification_key_get(Pid :: pid(), Kid :: binary(), Timeout :: pos_integer()) -> plaid_erl_res().
+webhook_verification_key_get(Pid, KID, Timeout)
+  when is_binary(KID), is_integer(Timeout), Timeout > 0  ->
+  Values = #{ <<"key_id">> => KID },
+  request(Pid, ?WEBHOOK_VERIFICATION_KEY_GET, <<"/webhook_verification_key/get">>, Values, Timeout).
+
 
 %% gen_server callbacks %%
 
 -spec init(Args :: plaid_init()) -> {ok, plaid_state()}.
-init(#plaid_init{ client_id=ClientID, secret=Secret, env=Env, timeout=Timeout, connect_timeout=ConnectTimeout })
+init(#plaid_init{
+  client_id=ClientID,
+  secret=Secret,
+  env=Env,
+  timeout=Timeout,
+  connect_timeout=ConnectTimeout
+})
   when is_binary(ClientID), is_binary(Secret), is_binary(Env) ->
   NTimeout = if
                is_integer(Timeout) and Timeout > 0 -> Timeout;
@@ -1257,6 +1283,7 @@ init(#plaid_init{ client_id=ClientID, secret=Secret, env=Env, timeout=Timeout, c
                    is_integer(ConnectTimeout) and ConnectTimeout > 0 -> ConnectTimeout;
                    true -> ?DEFAULT_CONNECT_TIMEOUT
                  end,
+
   {ok, #plaid_state{
     client_id=ClientID,
     secret=Secret,
@@ -1267,7 +1294,7 @@ init(#plaid_init{ client_id=ClientID, secret=Secret, env=Env, timeout=Timeout, c
   }.
 
 -spec terminate(Reason :: term(), State :: plaid_state()) -> ok.
-terminate(_Reason, #plaid_state{waiting=Waiting}) ->
+terminate(_Reason, #plaid_state{ waiting=Waiting }) ->
   terminate_pending_reqs(maps:to_list(Waiting)),
   ok.
 
