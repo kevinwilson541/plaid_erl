@@ -162,14 +162,22 @@
 %% public methods %%
 
 -spec start_link(Args :: plaid_init()) -> {ok, pid()}.
-start_link(Args=#plaid_init{}) ->
+start_link(Args=#plaid_init{ client_id=ClientID, secret=Secret, url=URL })
+  when is_binary(ClientID), is_binary(Secret), is_binary(URL) ->
+  gen_server:start_link(?MODULE, Args, []);
+start_link(Args=#plaid_init{ client_id=ClientID, secret=Secret, env=Env })
+  when is_binary(ClientID), is_binary(Secret), is_binary(Env) ->
   gen_server:start_link(?MODULE, Args, []).
 
 -spec start_link(
     Name :: {local, atom()} | {global, term()} | {via, Module :: atom(), Args :: term()},
     Args :: plaid_init()
 ) -> {ok, pid()}.
-start_link(Name, Args=#plaid_init{}) ->
+start_link(Name, Args=#plaid_init{ client_id=ClientID, secret=Secret, url=URL })
+  when is_binary(ClientID), is_binary(Secret), is_binary(URL) ->
+  gen_server:start_link(Name, ?MODULE, Args, []);
+start_link(Name, Args=#plaid_init{ client_id=ClientID, secret=Secret, env=Env })
+  when is_binary(ClientID), is_binary(Secret), is_binary(Env) ->
   gen_server:start_link(Name, ?MODULE, Args, []).
 
 -spec stop(Pid :: pid()) -> ok.
@@ -1271,10 +1279,10 @@ init(#plaid_init{
   client_id=ClientID,
   secret=Secret,
   env=Env,
+  url=URL,
   timeout=Timeout,
   connect_timeout=ConnectTimeout
-})
-  when is_binary(ClientID), is_binary(Secret), is_binary(Env) ->
+}) ->
   NTimeout = if
                is_integer(Timeout) and Timeout > 0 -> Timeout;
                true -> ?DEFAULT_TIMEOUT
@@ -1283,15 +1291,22 @@ init(#plaid_init{
                    is_integer(ConnectTimeout) and ConnectTimeout > 0 -> ConnectTimeout;
                    true -> ?DEFAULT_CONNECT_TIMEOUT
                  end,
+  Base = if
+           is_binary(URL) -> URL;
+           is_binary(Env) -> construct_base_url(Env);
+           true -> throw(<<"missing env and url binary inputs to plaid init arguments">>)
+         end,
 
-  {ok, #plaid_state{
+  State = #plaid_state{
     client_id=ClientID,
     secret=Secret,
-    env=Env,
+    url=Base,
     waiting=maps:new(),
     timeout=NTimeout,
-    connect_timeout=NConnTimeout}
-  }.
+    connect_timeout=NConnTimeout
+  },
+
+  {ok, State}.
 
 -spec terminate(Reason :: term(), State :: plaid_state()) -> ok.
 terminate(_Reason, #plaid_state{ waiting=Waiting }) ->
@@ -1349,8 +1364,8 @@ terminate_pending_reqs([{ReqID, #plaid_req_ctx{from=From}} | Rest]) ->
   terminate_pending_reqs(Rest).
 
 handle_req(#plaid_req{ type=Type, values=Values, url_suffix=UrlSuffix }, From, State) ->
-  #plaid_state{ client_id=ClientID, secret=Secret, waiting=W } = State,
-  Url = binary:bin_to_list(<< (construct_base_url(State))/binary, UrlSuffix/binary>>),
+  #plaid_state{ client_id=ClientID, secret=Secret, waiting=W, url=URL } = State,
+  Url = binary:bin_to_list(<< URL/binary, UrlSuffix/binary>>),
   Headers = construct_headers(),
   Body = jiffy:encode(maps:merge(#{
     <<"client_id">> => ClientID,
@@ -1363,7 +1378,7 @@ handle_req(#plaid_req{ type=Type, values=Values, url_suffix=UrlSuffix }, From, S
 construct_headers() ->
   [{ "Content-Type", "application/json" }].
 
-construct_base_url(#plaid_state{ env=Env }) ->
+construct_base_url(Env) when is_binary(Env) ->
   << "https://", Env/binary, ".plaid.com" >>.
 
 make_req(Method, Url, Headers, Body, #plaid_state{ timeout=Timeout, connect_timeout=ConnTimeout }) ->

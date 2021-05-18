@@ -1,6 +1,6 @@
 
--record(plaid_init, { client_id, secret, env, timeout, connect_timeout }).
--record(plaid_state, { client_id, secret, env, timeout, connect_timeout, waiting }).
+-record(plaid_init, { client_id, secret, env, url, timeout, connect_timeout }).
+-record(plaid_state, { client_id, secret, url, timeout, connect_timeout, waiting }).
 -record(plaid_req, { type, values, url_suffix }).
 -record(plaid_req_ctx, { from, type }).
 -record(plaid_error, { code, type, message, display, request_id, causes, status, suggested_action, doc_url }).
