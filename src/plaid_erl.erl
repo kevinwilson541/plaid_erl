@@ -11,10 +11,13 @@
   start_link/1,
   start_link/2,
   stop/1,
-  % generic method %
+  % generic methods %
   request/3,
   request/4,
   request/5,
+  request_async/3,
+  request_async/4,
+  request_async/5,
   % item methods %
   item_get/2,
   item_get/3,
@@ -158,6 +161,19 @@
 
 -include("plaid_erl.hrl").
 
+% @module
+% `gen_server` module for making HTTP requests against the plaid API. From the client perspective, all validation for
+% requests before a message is passed to the gen_server process. From the server side, the process stores a constructed url,
+% client and secret credentials, and a map that stores in-transit request identifiers (returned by async httpc calls) to
+% request context containing the requester (gen_server `From` parameter on `handle_call/3`). On request completion (error
+% or not) the request identifier is removed and the requester receives either a constructed error reply (`{error, Err}`)
+% or a map that's parsed JSON (`{ok, Body}`).
+%
+% If an error is returned, it will be one of the following formats:
+%   - `#plaid_error{}`: Record for documented errors returned by the plaid API.
+%   - `#plaid_erl_error{}`: Record for internal errors (plaid didn't return valid JSON, server shut down with pending
+%                           requests, unknown response from HTTP request to plaid API).
+
 
 %% public methods %%
 
@@ -207,6 +223,28 @@ request(Pid, UrlSuffix, Values, Timeout) ->
 request(Pid, Type, UrlSuffix, Values, Timeout)
   when is_atom(Type), is_binary(UrlSuffix), is_map(Values), is_integer(Timeout), Timeout > 0 ->
   gen_server:call(Pid, #plaid_req{ type=Type, values=Values, url_suffix=UrlSuffix }, Timeout).
+
+-spec request_async(Pid :: pid(), UrlSuffix :: binary(), Values :: maps:map()) -> reference().
+request_async(Pid, UrlSuffix, Values) ->
+  request_async(Pid, ?GENERIC_COMMAND, UrlSuffix, Values, self()).
+
+-spec request_async(Pid :: pid(), UrlSuffix :: binary(), Values :: maps:map(), To :: pid()) -> reference().
+request_async(Pid, UrlSuffix, Values, To) ->
+  request_async(Pid, ?GENERIC_COMMAND, UrlSuffix, Values, To).
+
+-spec request_async(
+    Pid :: pid(),
+    Type :: atom(),
+    UrlSuffix :: binary(),
+    Values :: maps:map(),
+    To :: pid()
+) -> reference().
+request_async(Pid, Type, UrlSuffix, Values, To)
+  when is_atom(Type), is_binary(UrlSuffix), is_map(Values) ->
+  Ref = make_ref(),
+  gen_server:cast(Pid, { {Ref, To}, #plaid_req{ type=Type, values=Values, url_suffix=UrlSuffix } }),
+  Ref.
+
 
 -spec item_get(Pid :: pid(), Token :: binary()) -> plaid_erl_res().
 item_get(Pid, Token) ->
@@ -1321,6 +1359,9 @@ handle_call(_Req, _From, State) ->
   {noreply, State}.
 
 -spec handle_cast(Cast :: term(), State :: plaid_state()) -> {noreply, plaid_state()}.
+handle_cast({From, Req=#plaid_req{}}, State) ->
+  State2 = handle_req(Req, From, State),
+  {noreply, State2};
 handle_cast(_Cast, State) ->
   {noreply, State}.
 
@@ -1416,7 +1457,6 @@ parse_result(_Type, {_HTTPVersion, Code, _Reason}, Headers, Body) when Code >= 4
 parse_result(_Type, {_HTTPVersion, _Code, _Reason}, _Headers, _Body) ->
   {error, #plaid_erl_error{ code=?INTERNAL_ERROR, message = <<"Unknown plaid response returned.">> }}.
 
-% TODO: parse ok res using request type
 parse_ok_res(_Type, Body) when is_map(Body) ->
   {ok, Body}.
 
